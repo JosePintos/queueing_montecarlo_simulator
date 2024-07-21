@@ -7,4 +7,4 @@ app = FastAPI()
 
 @app.get("/")
 def start_server():
-    return utils.runSimulation(horasASimular=0.5)
+    return utils.runSimulation(horasASimular=1)

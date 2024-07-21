@@ -18,7 +18,7 @@ def hours_to_min(hours: float) -> float:
 
 # Manejar next event y tiempos
 tiempos_eventos = {
-    "llegada aparato": 0,
+    "llegada aparato": 999,
     "fin reparacion 1": 999,
     "fin reparacion 2": 999,
     "fin reparacion 3": 999,
@@ -54,43 +54,54 @@ def actualizarEstado(result: list) -> None:
     4. actualizar cola si es necesario
     5. calcular cobro y acumularlo
     """
-    current_minimo = getNextEvent()
-    VECTOR_ESTADO["hora"] += tiempos_eventos[current_minimo]
 
-    evento = current_minimo
+    VECTOR_ESTADO["hora"] += tiempos_eventos[getNextEvent()]
+    evento = getNextEvent()
     VECTOR_ESTADO["evento"] = evento
     setNewTime(current_event=evento, new_time=calcularNuevoTiempo(evento=evento))
-    current_minimo = getNextEvent()
-
     cola = VECTOR_ESTADO["cola"]
     reparadores = VECTOR_ESTADO["reparadores"]
     aparatos = VECTOR_ESTADO["aparatos"]
+
     if evento == "llegada aparato":
-        if reparadores["r1"] == "libre":
+        if reparadores["r1"].estado == "libre":
             estado_aparato = "SR 1"
-            reparadores["r1"] = "ocupado"
-        elif reparadores["r2"] == "libre":
+            reparadores["r1"].estado = "ocupado"
+            setNewTime(
+                current_event="fin reparacion 1",
+                new_time=calcularNuevoTiempo(evento="fin reparacion 1"),
+            )
+        elif reparadores["r2"].estado == "libre":
             estado_aparato = "SR 2"
-            reparadores["r2"] = "ocupado"
-        elif reparadores["r3"] == "libre":
+            reparadores["r2"].estado = "ocupado"
+            setNewTime(
+                current_event="fin reparacion 2",
+                new_time=calcularNuevoTiempo(evento="fin reparacion 2"),
+            )
+        elif reparadores["r3"].estado == "libre":
             estado_aparato = "SR 3"
-            reparadores["r3"] = "ocupado"
+            reparadores["r3"].estado = "ocupado"
+            setNewTime(
+                current_event="fin reparacion 3",
+                new_time=calcularNuevoTiempo(evento="fin reparacion 3"),
+            )
         else:
             estado_aparato = "ER"
             Reparador.incrementCola()
+
         nuevo_aparato = Aparato(
             estado=estado_aparato, tiempo_llegada=VECTOR_ESTADO["hora"]
         )
-        aparatos[nuevo_aparato.id] = [
-            nuevo_aparato.estado,
-            nuevo_aparato.tiempo_llegada,
-        ]
+        aparatos[nuevo_aparato.id] = nuevo_aparato
 
     if evento.startswith("fin reparacion"):
-        aparato_reparado_key = [
-            list(aparatos.values()).index(f"SR {evento[len(evento)]}")
-        ]
+        aparato_reparado_key = next(
+            key
+            for key, value in aparatos.items()
+            if value.estado == f"SR {evento[len(evento)-1]}"
+        )
         VECTOR_ESTADO["monto cobro"] = 0
+
         if not aparatos[aparato_reparado_key].esGratis(
             tiempo_fin=VECTOR_ESTADO["hora"]
         ):
@@ -102,40 +113,51 @@ def actualizarEstado(result: list) -> None:
             next_aparato_in_line = min(
                 aparatos.values(), key=lambda p: p.tiempo_llegada, default=None
             )
-            aparatos[next_aparato_in_line] = f"SR {evento[len(evento)]}"
+
+            setNewTime(
+                current_event=f"fin reparacion {evento[len(evento)-1]}",
+                new_time=calcularNuevoTiempo(evento="fin reparacion"),
+            )
+            aparatos[next_aparato_in_line] = f"SR {evento[len(evento)-1]}"
         else:
-            reparadores[f"r{evento[len(evento)]}"] = "libre"
+            reparadores[f"r{evento[len(evento)-1]}"].estado = "libre"
 
     result.append(copy.deepcopy(VECTOR_ESTADO))
 
 
 ############################
-
-# init objetos permanentes
-reparador1 = Reparador("libre")
-reparador2 = Reparador("libre")
-reparador3 = Reparador("libre")
-
-# primer cliente que entra al sistema
-media = 1 / 7  # reemplazar media por el input
-aparato_1 = Aparato("SR", (-media * (math.log(1 - random.random()))))
-
 # Inicializacion
+
+
+def init_simulation(result: list) -> None:
+    # init objetos permanentes
+    reparador1 = Reparador("libre")
+    reparador2 = Reparador("libre")
+    reparador3 = Reparador("libre")
+
+    # calcular tiempo de llegada de primer aparato
+    tiempo_llegada = calcularNuevoTiempo(evento="llegada aparato")
+    setNewTime(current_event="llegada aparato", new_time=tiempo_llegada)
+    valores_iniciales = {
+        "hora": 0,
+        "evento": "inicio",
+        "eventos": tiempos_eventos,
+        "monto cobro": 0,
+        "reparadores": {
+            "r1": reparador1,
+            "r2": reparador2,
+            "r3": reparador3,
+        },
+        "cola": Reparador.getCola(),
+        "aparatos": {},
+    }
+    VECTOR_ESTADO.update(valores_iniciales)
+
+    result.append(copy.deepcopy(VECTOR_ESTADO))
+
+
 # {Hora,Evento,(RND,Llegada Aparato),(RND,Fin Reparacion),(RND,Monto Cobro),[Reparadores],{Aparatos}}
-VECTOR_ESTADO = {
-    "hora": 0,
-    "evento": "inicio",
-    "llegada aparato": aparato_1.tiempo_llegada,
-    "eventos": tiempos_eventos,
-    "monto cobro": 0,
-    "reparadores": {
-        "r1": reparador1.estado,
-        "r2": reparador2.estado,
-        "r3": reparador3.estado,
-    },
-    "cola": Reparador.getCola(),
-    "aparatos": {aparato_1.id: [aparato_1.estado, aparato_1.tiempo_llegada]},
-}
+VECTOR_ESTADO = dict()
 
 
 def runSimulation(
@@ -147,6 +169,11 @@ def runSimulation(
     maxTiempo: float = None,
 ):
     result = []
+    init_simulation(result=result)
     while VECTOR_ESTADO["hora"] < horasASimular:
         actualizarEstado(result=result)
     return result
+
+
+if __name__ == "__main__":
+    print(runSimulation(horasASimular=0.5))
