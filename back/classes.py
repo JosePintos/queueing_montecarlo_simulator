@@ -5,11 +5,19 @@ import math
 class Aparato:
     _last_id = 0
 
-    def __init__(self, estado: str, tiempo_llegada: float) -> None:
+    def __init__(
+        self,
+        estado: str,
+        tiempo_llegada: float,
+        idReparador: int = None,
+        posicionEnCola: int = None,
+    ) -> None:
         Aparato._last_id += 1
         self._id = Aparato._last_id
         self._estado = estado
         self._tiempo_llegada = tiempo_llegada
+        self._idReparador = idReparador
+        self._posicionEnCola = posicionEnCola
 
     @property
     def id(self) -> int:
@@ -31,6 +39,22 @@ class Aparato:
     def tiempo_llegada(self, value: str) -> None:
         self._tiempo_llegada = value
 
+    @property
+    def idReparador(self) -> int:
+        return self._idReparador
+
+    @idReparador.setter
+    def idReparador(self, value: int) -> None:
+        self._idReparador = value
+
+    @property
+    def posicionEnCola(self) -> int:
+        return self._posicionEnCola
+
+    @posicionEnCola.setter
+    def idReparador(self, value: int) -> None:
+        self._posicionEnCola = value
+
     # Calcular tiempo que espero el cliente
     def calcularTiempoDeEspera(self, tiempo_fin: float) -> float:
         return tiempo_fin - self._tiempo_llegada
@@ -49,12 +73,17 @@ class Aparato:
 
 class Reparador:
     _lastId = 0
-    _cola = 0
+    _cola = []
 
-    def __init__(self, estado: str) -> None:
+    def __init__(self, estado: str, idAparato: int = None) -> None:
         Reparador._lastId += 1
         self._id = Reparador._lastId
         self._estado = estado
+        self._idAparato = idAparato
+
+    @property
+    def id(self) -> int:
+        return self._id
 
     @property
     def estado(self) -> str:
@@ -64,17 +93,25 @@ class Reparador:
     def estado(self, value: str) -> None:
         self._estado = value
 
+    @property
+    def idAparato(self) -> int:
+        return self._idAparato
+
+    @idAparato.setter
+    def idAparato(self, value: int) -> None:
+        self._idAparato = value
+
     @staticmethod
     def getCola():
         return Reparador._cola
 
     @staticmethod
-    def incrementCola():
-        Reparador._cola += 1
+    def incrementCola(obj: Aparato):
+        Reparador._cola.append(obj)
 
     @staticmethod
     def decrementCola():
-        Reparador._cola -= 1
+        Reparador._cola.pop(0)
 
     # Calcular cobro
     @staticmethod
