@@ -1,14 +1,14 @@
 import copy
 from fastapi import FastAPI, Query, HTTPException
-from typing import List, Union, Dict, Optional, Any
+from typing import List, Dict, Optional, Any
 from pydantic import BaseModel
 from utils import init_simulation, actualizarEstado
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-import json
 
 
 app = FastAPI()
+
 
 # allow cors
 origins = ["*"]
@@ -20,6 +20,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # In-memory storage for simulation states
 simulation_states = {}
@@ -41,7 +42,12 @@ class SimulationResponse(BaseModel):
 def read_vector_estado(
     token: Optional[str] = Query(None),
     limit: int = Query(10),
-    horas: float = Query(1.0),
+    horas: float = Query(...),
+    precio_min: Optional[float] = Query(None),
+    precio_max: Optional[float] = Query(None),
+    tiempo_min: Optional[float] = Query(None),
+    tiempo_max: Optional[float] = Query(None),
+    media: Optional[float] = Query(None),
 ) -> SimulationResponse:
     chunk_result = []
     if token:
@@ -52,15 +58,23 @@ def read_vector_estado(
     else:
         # Initialize a new simulation state
         state = {
-            "vector_estado": init_simulation(chunk_result),
+            "vector_estado": init_simulation(chunk_result, media=media),
             "result": [],
             "hora": 0,
             "total": 0,
         }
-    # Generate the next chunk of results
 
+    # Generate the next chunk of results
     while state["hora"] < horas and len(chunk_result) < limit:
-        actualizarEstado(VECTOR_ESTADO=state["vector_estado"], result=chunk_result)
+        actualizarEstado(
+            VECTOR_ESTADO=state["vector_estado"],
+            result=chunk_result,
+            media=media,
+            precio_min=precio_min,
+            precio_max=precio_max,
+            tiempo_min=tiempo_min,
+            tiempo_max=tiempo_max,
+        )
         state["hora"] = state["vector_estado"]["hora"]
         state["total"] += 1
 

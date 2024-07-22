@@ -62,12 +62,12 @@ class Aparato:
     # Chequear precio
     def esGratis(self, tiempo_fin: float) -> bool:
         demora = self.calcularTiempoDeEspera(tiempo_fin)
-        return True if demora > 30 else False
+        return True if demora > 0.5 else False
 
     # Calcular proxima llegada
     @staticmethod
-    def llegadaAparato(media: float = 1 / 7) -> float:
-        rnd = random.random()
+    def llegadaAparato(media: float, rnd: float) -> float:
+        media = 1 / 7 if not media else media
         return -media * (math.log(1 - rnd))
 
 
@@ -101,28 +101,29 @@ class Reparador:
     def idAparato(self, value: int) -> None:
         self._idAparato = value
 
-    @staticmethod
-    def getCola():
-        return Reparador._cola
+    @classmethod
+    def getCola(cls):
+        return cls._cola
 
-    @staticmethod
-    def incrementCola(obj: Aparato):
-        Reparador._cola.append(obj)
+    @classmethod
+    def incrementCola(cls, aparato):
+        cls._cola.append(aparato)
 
-    @staticmethod
-    def decrementCola():
-        Reparador._cola.pop(0)
+    @classmethod
+    def decrementCola(cls):
+        if cls._cola:
+            cls._cola.pop(0)
 
     # Calcular cobro
     @staticmethod
-    def montoACobrar(precio_min: float = 100, precio_max: float = 400) -> float:
-        rnd = random.random()
+    def montoACobrar(precio_min: float, precio_max: float, rnd: float) -> float:
+        precio_min = 100 if not precio_min else precio_min
+        precio_max = 400 if not precio_max else precio_max
         return (precio_min + (rnd * (precio_max - precio_min))) * 0.75
 
     # Calcular fin servicio
     @staticmethod
-    def finReparacion(
-        tiempo_min: float = 13 / 60, tiempo_max: float = 17 / 60
-    ) -> float:
-        rnd = random.random()
-        return tiempo_min + (rnd * (tiempo_max - tiempo_min))
+    def finReparacion(tiempo_min: float, tiempo_max: float, rnd: float) -> float:
+        tiempo_min = 13 if not tiempo_min else tiempo_min
+        tiempo_max = 17 if not tiempo_max else tiempo_max
+        return (tiempo_min / 60) + (rnd * ((tiempo_max / 60) - (tiempo_min / 60)))
