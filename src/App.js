@@ -1,6 +1,6 @@
 import "./App.css";
 import Input from "./Components/Input/Input";
-import Table from "./Components/Table/Table";
+import Table from "./Components/SimulationDataGrid/SimulationDataGrid";
 
 function App() {
   return (

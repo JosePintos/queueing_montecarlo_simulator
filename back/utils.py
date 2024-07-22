@@ -12,22 +12,43 @@ VECTOR_ESTADO = dict()
 # Formatear resultados
 def formatResult(vector_estado: dict, result: list) -> None:
     formatted = {
-        "id": vector_estado["hora"],
+        "hora": float("{:.3f}".format(vector_estado["hora"])),
         "evento": vector_estado["evento"],
-        "llegada_aparato": vector_estado["eventos"]["llegada aparato"],
-        "fin_reparacion_1": vector_estado["eventos"]["fin reparacion 1"],
-        "fin_reparacion_2": vector_estado["eventos"]["fin reparacion 2"],
-        "fin_reparacion_3": vector_estado["eventos"]["fin reparacion 3"],
-        "monto_cobro": vector_estado["monto cobro"],
+        "llegada_aparato": float(
+            "{:.3f}".format(vector_estado["eventos"]["llegada aparato"])
+        ),
+        "fin_reparacion_1": float(
+            "{:.3f}".format(vector_estado["eventos"]["fin reparacion 1"])
+        ),
+        "fin_reparacion_2": float(
+            "{:.3f}".format(vector_estado["eventos"]["fin reparacion 2"])
+        ),
+        "fin_reparacion_3": float(
+            "{:.3f}".format(vector_estado["eventos"]["fin reparacion 3"])
+        ),
+        "monto_cobro": float("{:.3f}".format(vector_estado["monto cobro"])),
         "reparador_1": vector_estado["reparadores"]["r1"].estado,
         "reparador_2": vector_estado["reparadores"]["r2"].estado,
         "reparador_3": vector_estado["reparadores"]["r3"].estado,
         "cola": vector_estado["cola"],
-        "aparatos": [
-            [val.estado, val.tiempo_llegada]
-            for key, val in vector_estado["aparatos"].items()
-        ],
+        # "aparatos": [
+        #     [val.estado, val.tiempo_llegada]
+        #     for key, val in vector_estado["aparatos"].items()
+        # ],
+        # "estado_aparato": [
+        #     val.estado for key, val in vector_estado["aparatos"].items()
+        # ],
+        # "tiempo_llegada_aparato": [
+        #     float("{:.3f}".format(val.tiempo_llegada))
+        #     for key, val in vector_estado["aparatos"].items()
+        # ],
     }
+
+    for i, aparato in enumerate(vector_estado["aparatos"].values()):
+        formatted[f"a{i}_estado"] = aparato.estado
+        formatted[f"a{i}_tiempo llegada"] = float(
+            "{:.3f}".format(aparato.tiempo_llegada)
+        )
 
     result.append(formatted)
 
@@ -44,7 +65,13 @@ def init_simulation(result: list) -> None:
 
     # calcular tiempo de llegada de primer aparato
     tiempo_llegada = calcularNuevoTiempo(evento="llegada aparato")
-    setNewTime(current_event="llegada aparato", new_time=tiempo_llegada)
+    tiempos_eventos = {
+        "llegada aparato": tiempo_llegada,
+        "fin reparacion 1": 999,
+        "fin reparacion 2": 999,
+        "fin reparacion 3": 999,
+    }
+
     valores_iniciales = {
         "hora": 0,
         "evento": "inicio",
@@ -58,9 +85,9 @@ def init_simulation(result: list) -> None:
         "cola": 0,
         "aparatos": {},
     }
-    VECTOR_ESTADO.update(valores_iniciales)
-
-    formatResult(vector_estado=copy.deepcopy(VECTOR_ESTADO), result=result)
+    VECTOR_ESTADO = copy.deepcopy(valores_iniciales)
+    formatResult(vector_estado=VECTOR_ESTADO, result=result)
+    return VECTOR_ESTADO
 
 
 ###############################
@@ -75,21 +102,16 @@ def hours_to_min(hours: float) -> float:
     return
 
 
-# Manejar next event y tiempos
-tiempos_eventos = {
-    "llegada aparato": 999,
-    "fin reparacion 1": 999,
-    "fin reparacion 2": 999,
-    "fin reparacion 3": 999,
-}
-
-
-def setNewTime(current_event: str, new_time: float) -> None:
+# Manejar paso de eventos
+def setNewTime(tiempos_eventos: dict, current_event: str, new_time: float) -> None:
     tiempos_eventos[current_event] = new_time
 
 
-def getNextEvent() -> str:
-    return min(tiempos_eventos, key=tiempos_eventos.get)
+def getNextEvent(tiempos_eventos: dict) -> str:
+    return min(
+        (event for event in tiempos_eventos if tiempos_eventos[event] is not None),
+        key=tiempos_eventos.get,
+    )
 
 
 # calcular nuevo tiempo de evento
@@ -102,31 +124,20 @@ def calcularNuevoTiempo(evento: str) -> float:
 
 #########################################
 # funcion responsable de actualizar el vector estado
-def actualizarEstado(result: list) -> None:
-    """
-    1. actualizar evento
-        a. get min time
-        b. setear el tiempo siguiente del evento que acaba de suceder (param) y mostrar en tabla
-        c. actualizar current min
-    2. crear objeto cliente si es necesario
-        a. contar tiempo de espera
-    3. cambiar estados de objetos temp y perm si correpsonde
-    4. actualizar cola si es necesario
-    5. calcular cobro y acumularlo
-    """
-    #    breakpoint()
-    VECTOR_ESTADO["hora"] = tiempos_eventos[getNextEvent()]
-    evento = getNextEvent()
-    VECTOR_ESTADO["evento"] = evento
+def actualizarEstado(VECTOR_ESTADO: dict, result: list) -> None:
+    current_event = getNextEvent(VECTOR_ESTADO["eventos"])
+    VECTOR_ESTADO["hora"] = VECTOR_ESTADO["eventos"][current_event]
+    VECTOR_ESTADO["evento"] = current_event
 
     cola = len(Reparador.getCola())
     reparadores = VECTOR_ESTADO["reparadores"]
     aparatos = VECTOR_ESTADO["aparatos"]
 
-    if evento == "llegada aparato":
+    if current_event == "llegada aparato":
         setNewTime(
-            current_event=evento,
-            new_time=calcularNuevoTiempo(evento=evento) + VECTOR_ESTADO["hora"],
+            VECTOR_ESTADO["eventos"],
+            current_event,
+            calcularNuevoTiempo(evento=current_event) + VECTOR_ESTADO["hora"],
         )
         if reparadores["r1"].estado == "libre":
             reparadores["r1"].estado = "ocupado"
@@ -137,9 +148,9 @@ def actualizarEstado(result: list) -> None:
             )
             reparadores["r1"].idAparato = nuevo_aparato.id
             setNewTime(
-                current_event="fin reparacion 1",
-                new_time=calcularNuevoTiempo(evento="fin reparacion 1")
-                + VECTOR_ESTADO["hora"],
+                VECTOR_ESTADO["eventos"],
+                "fin reparacion 1",
+                calcularNuevoTiempo(evento="fin reparacion 1") + VECTOR_ESTADO["hora"],
             )
         elif reparadores["r2"].estado == "libre":
             reparadores["r2"].estado = "ocupado"
@@ -149,11 +160,10 @@ def actualizarEstado(result: list) -> None:
                 idReparador=reparadores["r2"].id,
             )
             reparadores["r2"].idAparato = nuevo_aparato.id
-
             setNewTime(
-                current_event="fin reparacion 2",
-                new_time=calcularNuevoTiempo(evento="fin reparacion 2")
-                + VECTOR_ESTADO["hora"],
+                VECTOR_ESTADO["eventos"],
+                "fin reparacion 2",
+                calcularNuevoTiempo(evento="fin reparacion 2") + VECTOR_ESTADO["hora"],
             )
         elif reparadores["r3"].estado == "libre":
             reparadores["r3"].estado = "ocupado"
@@ -164,9 +174,9 @@ def actualizarEstado(result: list) -> None:
             )
             reparadores["r3"].idAparato = nuevo_aparato.id
             setNewTime(
-                current_event="fin reparacion 3",
-                new_time=calcularNuevoTiempo(evento="fin reparacion 3")
-                + VECTOR_ESTADO["hora"],
+                VECTOR_ESTADO["eventos"],
+                "fin reparacion 3",
+                calcularNuevoTiempo(evento="fin reparacion 3") + VECTOR_ESTADO["hora"],
             )
         else:
             nuevo_aparato = Aparato(
@@ -177,42 +187,36 @@ def actualizarEstado(result: list) -> None:
             Reparador.incrementCola(nuevo_aparato)
 
         aparatos[nuevo_aparato.id] = nuevo_aparato
-
-    else:  # el evento es de fin reparacion
-        # breakpoint()
-        setNewTime(
-            current_event=evento,
-            new_time=999,
-        )
-        VECTOR_ESTADO["monto cobro"] = 0
-        aparato_reparado_key = reparadores[f"r{evento[len(evento)-1]}"].idAparato
+    else:
+        setNewTime(VECTOR_ESTADO["eventos"], current_event, 999)
+        reparador_id = current_event[-1]
+        aparato_reparado_key = reparadores[f"r{reparador_id}"].idAparato
 
         if not aparatos[aparato_reparado_key].esGratis(
             tiempo_fin=VECTOR_ESTADO["hora"]
         ):
             VECTOR_ESTADO["monto cobro"] += Reparador.montoACobrar()
-        # del aparatos[aparato_reparado_key]
         aparatos[aparato_reparado_key].estado = "FIN"
+
         if cola > 0:
             Reparador.decrementCola()
             next_aparato_in_line = min(
-                aparatos.values(), key=lambda p: p.tiempo_llegada
+                (aparato for aparato in aparatos.values() if aparato.estado == "ER"),
+                key=lambda p: p.tiempo_llegada,
             )
-
+            reparadores[f"r{reparador_id}"].idAparato = next_aparato_in_line.id
+            aparatos[next_aparato_in_line.id].estado = f"SR {reparador_id}"
             setNewTime(
-                current_event=f"fin reparacion {evento[len(evento)-1]}",
-                new_time=calcularNuevoTiempo(
-                    evento=f"fin reparacion {evento[len(evento)-1]}"
-                )
+                VECTOR_ESTADO["eventos"],
+                f"fin reparacion {reparador_id}",
+                calcularNuevoTiempo(evento=f"fin reparacion {reparador_id}")
                 + VECTOR_ESTADO["hora"],
             )
-            aparatos[next_aparato_in_line.id].estado = f"SR {evento[len(evento)-1]}"
         else:
-            reparadores[f"r{evento[len(evento)-1]}"].estado = "libre"
-            reparadores[f"r{evento[len(evento)-1]}"].idAparato = None
+            reparadores[f"r{reparador_id}"].estado = "libre"
+            reparadores[f"r{reparador_id}"].idAparato = None
 
     VECTOR_ESTADO["cola"] = len(Reparador.getCola())
-
     formatResult(vector_estado=copy.deepcopy(VECTOR_ESTADO), result=result)
 
 
@@ -225,11 +229,11 @@ def runSimulation(
     maxTiempo: float = None,
 ):
     result = []
-    init_simulation(result=result)
+    VECTOR_ESTADO = init_simulation(result=result)
     while VECTOR_ESTADO["hora"] < horasASimular:
-        actualizarEstado(result=result)
+        actualizarEstado(VECTOR_ESTADO=VECTOR_ESTADO, result=result)
     return result
 
 
 if __name__ == "__main__":
-    print(runSimulation(horasASimular=2))
+    print(runSimulation(horasASimular=2)[0:25])
